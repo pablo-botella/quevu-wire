@@ -2,3 +2,5 @@
 *.test
 *.out
 
+.claude
+__publish.bat

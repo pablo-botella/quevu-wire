@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mkskill>
+  <project id="main" name="quevu-wire" project-type="Go-Module">
+    <meta>
+      <module>github.com/pablo-botella/quevu-wire</module>
+      <license>MIT</license>
+      <description>A quevu panel served over a local connection for Go: named pipes on Windows, Unix domain sockets elsewhere, and a JSON-lines protocol on top, so a controller in another process gets a quevu.Controller. Use when working with github.com/pablo-botella/quevu-wire (package qwire) or its wire protocol.</description>
+    </meta>
+  </project>
+</mkskill>
