@@ -64,7 +64,10 @@ events in the order the log produced them:
 <- {"ev":"feedend","feed":7}
 ```
 
-Feed operations: 1 live, 2 follow, 3 pause, 4 tail, 5 before, 6 after. A
+Feed operations: 1 live, 2 follow, 3 pause, 4 tail, 5 before, 6 after,
+7 history-before, 8 history-after. A delivery that answers `before` with
+`hist` set says recent output ran short and a history exists; the two
+history operations are sent only after the user asked for it. A
 chunk is `s` (position), `t` (nanoseconds since the Unix epoch) and `d`
 (data, base64, since output is not always text).
 
@@ -80,7 +83,8 @@ only the matches travel:
 the end of the log) and `fwd` walks towards newer output. In the answer,
 `seq` and `rt` are the position and time the step reached, `examined` how
 many chunks it looked at, and `done` says it ran out of log rather than
-out of budget.
+out of budget. `hist` in the request allows the step into the history
+(the user asked); `hist` in the answer offers it.
 
 ## Behaviour worth knowing
 

@@ -138,10 +138,11 @@ func (c *Client) read(lr *linereader.LineReader) {
 			c.mu.Unlock()
 			if f != nil {
 				f.deliver(quevu.Delivery{
-					Op:     quevu.Op(m.D.Op),
-					Chunks: fromWChunks(m.D.Chunks),
-					Full:   m.D.Full,
-					Err:    textErr(m.D.Err),
+					Op:      quevu.Op(m.D.Op),
+					Chunks:  fromWChunks(m.D.Chunks),
+					Full:    m.D.Full,
+					History: m.D.Hist,
+					Err:     textErr(m.D.Err),
 				})
 			}
 		case m.Ev == "feedend":
@@ -317,13 +318,13 @@ func (s *remoteSource) After(seq uint64, n int) ([]quevu.Chunk, error) {
 // the data: only the matches travel.
 func (s *remoteSource) Search(q quevu.Query) (quevu.Result, error) {
 	re, err := s.c.call(context.Background(), &msg{
-		Op: "search", Source: s.name, Text: q.Text, Seq: q.From, Fwd: q.Forward, N: q.Max, Budget: q.Budget,
+		Op: "search", Source: s.name, Text: q.Text, Seq: q.From, Fwd: q.Forward, N: q.Max, Budget: q.Budget, Hist: q.History,
 	})
 	if err != nil {
 		return quevu.Result{Reached: q.From}, err
 	}
 	return quevu.Result{
-		Matches: fromWChunks(re.Chunks), Reached: re.Seq, ReachedTime: re.RT, Examined: re.Examined, Done: re.Done,
+		Matches: fromWChunks(re.Chunks), Reached: re.Seq, ReachedTime: re.RT, Examined: re.Examined, Done: re.Done, History: re.Hist,
 	}, nil
 }
 

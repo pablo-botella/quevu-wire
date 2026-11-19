@@ -84,6 +84,7 @@ type msg struct {
 	Examined  int        `json:"examined,omitempty"`
 	RT        int64      `json:"rt,omitempty"`
 	Done      bool       `json:"done,omitempty"`
+	Hist      bool       `json:"hist,omitempty"`
 	Err       string     `json:"err,omitempty"`
 }
 
@@ -97,6 +98,7 @@ type wDelivery struct {
 	Op     int      `json:"op"`
 	Chunks []wChunk `json:"chunks,omitempty"`
 	Full   bool     `json:"full,omitempty"`
+	Hist   bool     `json:"hist,omitempty"`
 	Err    string   `json:"err,omitempty"`
 }
 

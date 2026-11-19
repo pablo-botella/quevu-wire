@@ -190,7 +190,7 @@ func (s *session) subscribe(m *msg) {
 		// leaves the feed unread, which makes the log hang the do not
 		// disturb sign: the log itself never waits for a connection.
 		for d := range f.Data {
-			w := &wDelivery{Op: int(d.Op), Chunks: toWChunks(d.Chunks), Full: d.Full, Err: errText(d.Err)}
+			w := &wDelivery{Op: int(d.Op), Chunks: toWChunks(d.Chunks), Full: d.Full, Hist: d.History, Err: errText(d.Err)}
 			if s.send(&msg{Ev: "delivery", Feed: id, D: w}) != nil {
 				f.Close()
 				return
@@ -260,9 +260,9 @@ func (s *session) handle(m *msg) *msg {
 		}
 		// One bounded step. The source, and the stored-data provider
 		// behind it, keep their say on how much that is.
-		r, err := quevu.Search(src, quevu.Query{Text: m.Text, From: m.Seq, Forward: m.Fwd, Max: m.N, Budget: m.Budget})
+		r, err := quevu.Search(src, quevu.Query{Text: m.Text, From: m.Seq, Forward: m.Fwd, Max: m.N, Budget: m.Budget, History: m.Hist})
 		re.Chunks, re.Err = toWChunks(r.Matches), errText(err)
-		re.Seq, re.RT, re.Examined, re.Done = r.Reached, r.ReachedTime, r.Examined, r.Done
+		re.Seq, re.RT, re.Examined, re.Done, re.Hist = r.Reached, r.ReachedTime, r.Examined, r.Done, r.History
 	case "stats":
 		src := s.byName[m.Source]
 		if src == nil {

@@ -245,6 +245,80 @@ func TestSearchAcrossTheWire(t *testing.T) {
 	}
 }
 
+// history is a provider that holds an older stretch of a log.
+type history struct{ chunks []quevu.Chunk }
+
+func (h history) Tail(n int) ([]quevu.Chunk, error) {
+	return h.chunks[max(len(h.chunks)-n, 0):], nil
+}
+
+func (h history) Before(seq uint64, n int) ([]quevu.Chunk, error) {
+	end := 0
+	for end < len(h.chunks) && h.chunks[end].Seq < seq {
+		end++
+	}
+	return h.chunks[max(end-n, 0):end], nil
+}
+
+func (h history) After(seq uint64, n int) ([]quevu.Chunk, error) {
+	start := 0
+	for start < len(h.chunks) && h.chunks[start].Seq <= seq {
+		start++
+	}
+	return h.chunks[start:min(start+n, len(h.chunks))], nil
+}
+
+func TestTheOfferOfHistoryCrossesTheWire(t *testing.T) {
+	// A log of 60 lines: the first 40 only in the history, the screen
+	// remembers the last 20.
+	scr := qpanel.New("old", qpanel.WithMemory(20))
+	var hist history
+	for i := uint64(1); i <= 60; i++ {
+		c := quevu.Chunk{Seq: i, Time: time.Now(), Data: fmt.Appendf(nil, "l%d", i)}
+		if i <= 40 {
+			hist.chunks = append(hist.chunks, c)
+		}
+		scr.Write([]quevu.Chunk{c})
+	}
+	p := quevu.New()
+	p.AddSource(quevu.Join(scr, quevu.Roles{Historical: hist}))
+	a, b := net.Pipe()
+	go ServeConn(a, p)
+	c, err := NewClient(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	src := c.Sources()[0]
+
+	f := src.Subscribe(0)
+	defer f.Close()
+	f.Req <- quevu.Request{Op: quevu.OpFollow, N: 5}
+	recv(t, f)
+	f.Req <- quevu.Request{Op: quevu.OpPause}
+	recv(t, f)
+	// Recent output ends: the controller is told there is a history.
+	f.Req <- quevu.Request{Op: quevu.OpBefore, Seq: 45, N: 10}
+	d := recv(t, f)
+	if d.Op != quevu.OpBefore || texts(d.Chunks) != "l41,l42,l43,l44" || !d.History {
+		t.Fatalf("offer: %v %q history=%v", d.Op, texts(d.Chunks), d.History)
+	}
+	// And gets it only by asking.
+	f.Req <- quevu.Request{Op: quevu.OpHistoryBefore, Seq: 41, N: 3}
+	if d := recv(t, f); d.Op != quevu.OpHistoryBefore || texts(d.Chunks) != "l38,l39,l40" {
+		t.Fatalf("history: %v %q", d.Op, texts(d.Chunks))
+	}
+	// The same for a search.
+	res, err := quevu.Search(src, quevu.Query{Text: "l7"})
+	if err != nil || len(res.Matches) != 0 || !res.Done || !res.History {
+		t.Fatalf("search offer: %+v %v", res, err)
+	}
+	res, _ = quevu.Search(src, quevu.Query{Text: "l7", From: res.Reached, History: true})
+	if len(res.Matches) != 1 || res.Matches[0].Seq != 7 {
+		t.Fatalf("search in the history: %+v", res)
+	}
+}
+
 func TestFeedAcrossTheWire(t *testing.T) {
 	r := newRig(t)
 	fmt.Fprint(r.web, "a\nb\nc\n")
