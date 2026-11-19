@@ -11,23 +11,37 @@ import (
 	"time"
 
 	"github.com/pablo-botella/quevu"
-	qlog "github.com/pablo-botella/quevu-log"
+	qpanel "github.com/pablo-botella/quevu-panel"
 )
 
 type rig struct {
 	panel  *quevu.Panel
-	web    *qlog.Log
+	web    *pen
 	client *Client
+}
+
+// pen writes lines to a screen the way a log would, but at once: these
+// tests are about the wire, not about queues.
+type pen struct {
+	s   *qpanel.Screen
+	seq uint64
+}
+
+func (p *pen) Write(b []byte) (int, error) {
+	for _, line := range strings.Split(strings.TrimSuffix(string(b), "\n"), "\n") {
+		p.seq++
+		p.s.Write([]quevu.Chunk{{Seq: p.seq, Time: time.Now(), Data: []byte(line)}})
+	}
+	return len(b), nil
 }
 
 // newRig serves a small application over an in-memory connection.
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	p := quevu.New()
-	web, _ := qlog.New("web")
-	mail, _ := qlog.New("mail")
-	p.AddSource(web)
-	p.AddSource(mail)
+	web := &pen{s: qpanel.New("web")}
+	p.AddSource(web.s)
+	p.AddSource(qpanel.New("mail"))
 	p.Add("web", quevu.Func(nil, nil))
 	p.Add("slow", quevu.Go(func(ctx context.Context) error {
 		<-ctx.Done()
@@ -367,8 +381,8 @@ func TestNotQuevuAtTheOtherEnd(t *testing.T) {
 func TestLocalEndpoint(t *testing.T) {
 	name := fmt.Sprintf("test-%d", time.Now().UnixNano())
 	p := quevu.New()
-	lg, _ := qlog.New("out")
-	p.AddSource(lg)
+	lg := &pen{s: qpanel.New("out")}
+	p.AddSource(lg.s)
 	p.Add("a", quevu.Func(nil, nil))
 	defer p.Shutdown()
 

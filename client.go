@@ -327,15 +327,16 @@ func (s *remoteSource) Search(q quevu.Query) (quevu.Result, error) {
 	}, nil
 }
 
-// Stats shows the device queues of the log, as the application sees them.
-func (s *remoteSource) Stats() []quevu.DeviceStats {
+// Stats shows the consumer queues of the log, as the application sees
+// them.
+func (s *remoteSource) Stats() []quevu.ConsumerStats {
 	re, err := s.c.call(context.Background(), &msg{Op: "stats", Source: s.name})
 	if err != nil {
 		return nil
 	}
-	out := make([]quevu.DeviceStats, len(re.Stats))
+	out := make([]quevu.ConsumerStats, len(re.Stats))
 	for i, w := range re.Stats {
-		out[i] = quevu.DeviceStats{
+		out[i] = quevu.ConsumerStats{
 			Queued: w.Queued, Capacity: w.Capacity, Written: w.Written,
 			Dropped: w.Dropped, Failed: w.Failed, LastErr: textErr(w.LastErr),
 		}

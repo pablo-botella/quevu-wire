@@ -71,7 +71,7 @@ sends answers and events:
 ```
 
 Requests: `units`, `sources`, `start`, `stop`, `startall`, `stopall`,
-`tail`, `before`, `after`, `stats`. Unit states: 0 stopped, 1 starting,
+`tail`, `before`, `after`, `search`, `stats`. Unit states: 0 stopped, 1 starting,
 2 running, 3 stopping, 4 failed.
 
 A feed keeps its two one-way lanes. The client names it, sends its
@@ -90,6 +90,20 @@ events in the order the log produced them:
 Feed operations: 1 live, 2 follow, 3 pause, 4 tail, 5 before, 6 after. A
 chunk is `s` (position), `t` (nanoseconds since the Unix epoch) and `d`
 (data, base64, since output is not always text).
+
+A search is one bounded step, run in the application, next to the data;
+only the matches travel:
+
+```
+-> {"id":9,"op":"search","source":"web","text":"timeout","seq":0,"budget":100000}
+<- {"id":9,"re":true,"chunks":[...],"seq":48211,"rt":1767322245000000000,"examined":51790}
+```
+
+`seq` in the request is where the step starts (zero, going backwards, is
+the end of the log) and `fwd` walks towards newer output. In the answer,
+`seq` and `rt` are the position and time the step reached, `examined` how
+many chunks it looked at, and `done` says it ran out of log rather than
+out of budget.
 
 ## Behaviour worth knowing
 
