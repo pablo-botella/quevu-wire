@@ -379,7 +379,11 @@ func TestLocalEndpoint(t *testing.T) {
 	if err := <-served; err != nil {
 		t.Fatalf("serve: %v", err)
 	}
-	if _, err := Connect(ctx, name); err == nil {
+	// While earlier connections live, a pipe with no listener reports
+	// busy rather than missing, so a dial waits as long as it is allowed.
+	short, cancelShort := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancelShort()
+	if _, err := Connect(short, name); err == nil {
 		t.Fatal("connected to a closed endpoint")
 	}
 	if _, err := Listen("bad name!"); err == nil {
