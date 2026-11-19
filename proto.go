@@ -85,6 +85,9 @@ type msg struct {
 	RT        int64      `json:"rt,omitempty"`
 	Done      bool       `json:"done,omitempty"`
 	Hist      bool       `json:"hist,omitempty"`
+	Since     int64      `json:"since,omitempty"`
+	Until     int64      `json:"until,omitempty"`
+	OOR       bool       `json:"oor,omitempty"`
 	Err       string     `json:"err,omitempty"`
 }
 
@@ -155,6 +158,22 @@ func toWUnit(i quevu.UnitInfo) wUnit {
 
 func fromWUnit(w wUnit) quevu.UnitInfo {
 	return quevu.UnitInfo{Name: w.Name, State: quevu.State(w.State), Err: w.Err}
+}
+
+// wTime and wNano carry a time as nanoseconds since the Unix epoch, with
+// zero for "no time".
+func wTime(ns int64) time.Time {
+	if ns == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, ns)
+}
+
+func wNano(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
 }
 
 func errText(err error) string {

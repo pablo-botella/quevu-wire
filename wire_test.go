@@ -239,6 +239,15 @@ func TestSearchAcrossTheWire(t *testing.T) {
 	if len(res.Matches) != 1 || res.Matches[0].Seq != 200 {
 		t.Fatalf("forwards: %+v", res)
 	}
+	// A time range travels too, and so does the reason a step stopped.
+	res, _ = quevu.Search(web, quevu.Query{Text: "error", Since: time.Now().Add(time.Hour)})
+	if len(res.Matches) != 0 || !res.Done || !res.OutOfRange || res.Examined != 1 {
+		t.Fatalf("out of range: %+v", res)
+	}
+	res, _ = quevu.Search(web, quevu.Query{Text: "error", Since: time.Now().Add(-time.Hour), Until: time.Now().Add(time.Hour)})
+	if len(res.Matches) != 1 || res.Matches[0].Seq != 300 {
+		t.Fatalf("in range: %+v", res)
+	}
 	res, _ = quevu.Search(web, quevu.Query{Text: "nothing like it", Budget: 50})
 	if len(res.Matches) != 0 || res.Examined != 50 || res.Done {
 		t.Fatalf("budget: %+v", res)

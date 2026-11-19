@@ -80,7 +80,9 @@ the end of the log) and `fwd` walks towards newer output. In the answer,
 `seq` and `rt` are the position and time the step reached, `examined` how
 many chunks it looked at, and `done` says it ran out of log rather than
 out of budget. `hist` in the request allows the step into the history
-(the user asked); `hist` in the answer offers it.
+(the user asked); `hist` in the answer offers it. `since` and `until`,
+nanoseconds since the Unix epoch, bound the search in time; `oor` in the
+answer says the step stopped because it walked past that range.
 
 ## Behaviour worth knowing
 

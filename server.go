@@ -260,9 +260,9 @@ func (s *session) handle(m *msg) *msg {
 		}
 		// One bounded step. The source, and the stored-data provider
 		// behind it, keep their say on how much that is.
-		r, err := quevu.Search(src, quevu.Query{Text: m.Text, From: m.Seq, Forward: m.Fwd, Max: m.N, Budget: m.Budget, History: m.Hist})
+		r, err := quevu.Search(src, quevu.Query{Text: m.Text, From: m.Seq, Forward: m.Fwd, Max: m.N, Budget: m.Budget, History: m.Hist, Since: wTime(m.Since), Until: wTime(m.Until)})
 		re.Chunks, re.Err = toWChunks(r.Matches), errText(err)
-		re.Seq, re.RT, re.Examined, re.Done, re.Hist = r.Reached, r.ReachedTime, r.Examined, r.Done, r.History
+		re.Seq, re.RT, re.Examined, re.Done, re.Hist, re.OOR = r.Reached, r.ReachedTime, r.Examined, r.Done, r.History, r.OutOfRange
 	case "stats":
 		src := s.byName[m.Source]
 		if src == nil {

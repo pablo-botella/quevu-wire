@@ -318,13 +318,13 @@ func (s *remoteSource) After(seq uint64, n int) ([]quevu.Chunk, error) {
 // the data: only the matches travel.
 func (s *remoteSource) Search(q quevu.Query) (quevu.Result, error) {
 	re, err := s.c.call(context.Background(), &msg{
-		Op: "search", Source: s.name, Text: q.Text, Seq: q.From, Fwd: q.Forward, N: q.Max, Budget: q.Budget, Hist: q.History,
+		Op: "search", Source: s.name, Text: q.Text, Seq: q.From, Fwd: q.Forward, N: q.Max, Budget: q.Budget, Hist: q.History, Since: wNano(q.Since), Until: wNano(q.Until),
 	})
 	if err != nil {
 		return quevu.Result{Reached: q.From}, err
 	}
 	return quevu.Result{
-		Matches: fromWChunks(re.Chunks), Reached: re.Seq, ReachedTime: re.RT, Examined: re.Examined, Done: re.Done, History: re.Hist,
+		Matches: fromWChunks(re.Chunks), Reached: re.Seq, ReachedTime: re.RT, Examined: re.Examined, Done: re.Done, History: re.Hist, OutOfRange: re.OOR,
 	}, nil
 }
 
