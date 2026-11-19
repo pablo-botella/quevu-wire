@@ -202,6 +202,35 @@ func TestSourcesByPosition(t *testing.T) {
 	}
 }
 
+func TestSearchAcrossTheWire(t *testing.T) {
+	r := newRig(t)
+	for i := 1; i <= 300; i++ {
+		if i%100 == 0 {
+			fmt.Fprintf(r.web, "l%d \x1b[31mERROR\x1b[0m here\n", i)
+		} else {
+			fmt.Fprintf(r.web, "l%d\n", i)
+		}
+	}
+	web := r.client.Sources()[0]
+	// The step runs in the application; only the match comes back.
+	res, err := quevu.Search(web, quevu.Query{Text: "error here"})
+	if err != nil || len(res.Matches) != 1 || res.Matches[0].Seq != 300 || res.Reached != 300 {
+		t.Fatalf("%+v %v", res, err)
+	}
+	res, _ = quevu.Search(web, quevu.Query{Text: "error", From: res.Reached})
+	if len(res.Matches) != 1 || res.Matches[0].Seq != 200 || res.Examined != 100 || res.ReachedTime == 0 {
+		t.Fatalf("second step: %+v", res)
+	}
+	res, _ = quevu.Search(web, quevu.Query{Text: "error", From: 100, Forward: true})
+	if len(res.Matches) != 1 || res.Matches[0].Seq != 200 {
+		t.Fatalf("forwards: %+v", res)
+	}
+	res, _ = quevu.Search(web, quevu.Query{Text: "nothing like it", Budget: 50})
+	if len(res.Matches) != 0 || res.Examined != 50 || res.Done {
+		t.Fatalf("budget: %+v", res)
+	}
+}
+
 func TestFeedAcrossTheWire(t *testing.T) {
 	r := newRig(t)
 	fmt.Fprint(r.web, "a\nb\nc\n")

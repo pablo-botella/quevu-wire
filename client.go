@@ -313,6 +313,20 @@ func (s *remoteSource) After(seq uint64, n int) ([]quevu.Chunk, error) {
 	return s.ask("after", seq, n)
 }
 
+// Search runs one bounded step of a search in the application, next to
+// the data: only the matches travel.
+func (s *remoteSource) Search(q quevu.Query) (quevu.Result, error) {
+	re, err := s.c.call(context.Background(), &msg{
+		Op: "search", Source: s.name, Text: q.Text, Seq: q.From, Fwd: q.Forward, N: q.Max, Budget: q.Budget,
+	})
+	if err != nil {
+		return quevu.Result{Reached: q.From}, err
+	}
+	return quevu.Result{
+		Matches: fromWChunks(re.Chunks), Reached: re.Seq, ReachedTime: re.RT, Examined: re.Examined, Done: re.Done,
+	}, nil
+}
+
 // Stats shows the device queues of the log, as the application sees them.
 func (s *remoteSource) Stats() []quevu.DeviceStats {
 	re, err := s.c.call(context.Background(), &msg{Op: "stats", Source: s.name})
@@ -478,4 +492,5 @@ var (
 	_ quevu.Controller = (*Client)(nil)
 	_ quevu.Source     = (*remoteSource)(nil)
 	_ quevu.StatSource = (*remoteSource)(nil)
+	_ quevu.Searcher   = (*remoteSource)(nil)
 )

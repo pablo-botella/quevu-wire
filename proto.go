@@ -78,6 +78,12 @@ type msg struct {
 	Sources   []string   `json:"sources,omitempty"`
 	Chunks    []wChunk   `json:"chunks,omitempty"`
 	Stats     []wStats   `json:"stats,omitempty"`
+	Text      string     `json:"text,omitempty"`
+	Fwd       bool       `json:"fwd,omitempty"`
+	Budget    int        `json:"budget,omitempty"`
+	Examined  int        `json:"examined,omitempty"`
+	RT        int64      `json:"rt,omitempty"`
+	Done      bool       `json:"done,omitempty"`
 	Err       string     `json:"err,omitempty"`
 }
 
