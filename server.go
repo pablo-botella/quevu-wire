@@ -272,8 +272,9 @@ func (s *session) handle(m *msg) *msg {
 		if ss, ok := src.(quevu.StatSource); ok {
 			for _, st := range ss.Stats() {
 				re.Stats = append(re.Stats, wStats{
-					Queued: st.Queued, Capacity: st.Capacity, Written: st.Written,
-					Dropped: st.Dropped, Failed: st.Failed, LastErr: errText(st.LastErr),
+					Name: st.Name, Queued: st.Queued, Capacity: st.Capacity, Written: st.Written,
+					Skipped: st.Skipped, Waiting: st.Waiting, Waits: st.Waits,
+					Failed: st.Failed, LastErr: errText(st.LastErr),
 				})
 			}
 		}

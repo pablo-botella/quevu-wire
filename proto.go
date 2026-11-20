@@ -118,10 +118,13 @@ type wUnit struct {
 }
 
 type wStats struct {
+	Name     string `json:"name,omitempty"`
 	Queued   int    `json:"queued"`
 	Capacity int    `json:"capacity"`
 	Written  uint64 `json:"written"`
-	Dropped  uint64 `json:"dropped"`
+	Skipped  uint64 `json:"skipped"`
+	Waiting  bool   `json:"waiting,omitempty"`
+	Waits    uint64 `json:"waits,omitempty"`
 	Failed   uint64 `json:"failed"`
 	LastErr  string `json:"last_err,omitempty"`
 }
