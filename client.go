@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/pablo-botella/linereader"
-	"github.com/pablo-botella/quevu"
+	quevu "github.com/pablo-botella/quevu-kernel"
 )
 
 // Client is the far end of a served panel. It implements
