@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pablo-botella/quevu"
+	"github.com/pablo-botella/quevu/qpanel"
 )
 
 type rig struct {
@@ -22,7 +23,7 @@ type rig struct {
 // pen writes lines to a screen the way a log would, but at once: these
 // tests are about the wire, not about queues.
 type pen struct {
-	s   *quevu.Screen
+	s   *qpanel.Screen
 	seq uint64
 }
 
@@ -38,9 +39,9 @@ func (p *pen) Write(b []byte) (int, error) {
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	p := quevu.New()
-	web := &pen{s: quevu.NewScreen("web")}
+	web := &pen{s: qpanel.New("web")}
 	p.AddSource(web.s)
-	p.AddSource(quevu.NewScreen("mail"))
+	p.AddSource(qpanel.New("mail"))
 	p.Add("web", quevu.Func(nil, nil))
 	p.Add("slow", quevu.Go(func(ctx context.Context) error {
 		<-ctx.Done()
@@ -279,7 +280,7 @@ func (h history) After(seq uint64, n int) ([]quevu.Chunk, error) {
 func TestTheOfferOfHistoryCrossesTheWire(t *testing.T) {
 	// A log of 60 lines: the first 40 only in the history, the screen
 	// remembers the last 20.
-	scr := quevu.NewScreen("old", quevu.WithMemory(20))
+	scr := qpanel.New("old", qpanel.WithMemory(20))
 	var hist history
 	for i := uint64(1); i <= 60; i++ {
 		c := quevu.Chunk{Seq: i, Time: time.Now(), Data: fmt.Appendf(nil, "l%d", i)}
@@ -463,7 +464,7 @@ func TestNotQuevuAtTheOtherEnd(t *testing.T) {
 func TestLocalEndpoint(t *testing.T) {
 	name := fmt.Sprintf("test-%d", time.Now().UnixNano())
 	p := quevu.New()
-	lg := &pen{s: quevu.NewScreen("out")}
+	lg := &pen{s: qpanel.New("out")}
 	p.AddSource(lg.s)
 	p.Add("a", quevu.Func(nil, nil))
 	defer p.Shutdown()
