@@ -12,4 +12,4 @@ Go package `github.com/pablo-botella/quevu-wire`, imported as `qwire`: a
 sources implement `quevu.Source`, `quevu.Searcher` and `quevu.StatSource`). Transport:
 `Listen`, `Dial`, `Connect`, `Endpoint`. Depends on `quevu`,
 `github.com/pablo-botella/linereader` and, on Windows,
-`github.com/Microsoft/go-winio`. Tests also use `quevu-panel`.
+`github.com/Microsoft/go-winio`.
