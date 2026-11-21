@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/pablo-botella/linereader"
-	quevu "github.com/pablo-botella/quevu-kernel"
+	"github.com/pablo-botella/quevu"
 )
 
 // Serve accepts connections on l and serves the controller on each one,

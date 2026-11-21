@@ -44,7 +44,7 @@ import (
 	"errors"
 	"time"
 
-	quevu "github.com/pablo-botella/quevu-kernel"
+	"github.com/pablo-botella/quevu"
 )
 
 // Version is the protocol version announced in the hello.

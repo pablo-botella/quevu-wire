@@ -1,6 +1,6 @@
 # quevu-wire
 
-A [quevu](https://github.com/pablo-botella/quevu-kernel) panel across a local
+A [quevu](https://github.com/pablo-botella/quevu) panel across a local
 connection, so the window can run in a process of its own: the
 application serves its panel, and a controller program gets back
 something that behaves exactly like it.
