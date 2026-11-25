@@ -1,0 +1,32 @@
+# Release: runs when a v* tag lands and publishes the release of that
+# tag, with generated notes, only if the tag sits on main. quevu-wire is a
+# library, with no binaries to ship: the release IS the tag. Nothing is
+# built or tested here yet.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # gh release create
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history: the tag-on-main check needs origin/main
+
+      - name: tag must be on main
+        run: |
+          git merge-base --is-ancestor HEAD origin/main || {
+            echo "::error::tag ${GITHUB_REF_NAME} is not on main"; exit 1; }
+
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag --generate-notes --title "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY"
