@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/pablo-botella/linereader"
-	"github.com/pablo-botella/quevu"
+	"github.com/pablo-botella/quevu/qkernel"
 )
 
 // Serve accepts connections on l and serves the controller on each one,
 // until the listener is closed. Several controller programs may be
 // connected at the same time.
-func Serve(l net.Listener, c quevu.Controller) error {
+func Serve(l net.Listener, c qkernel.Controller) error {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -32,15 +32,15 @@ func Serve(l net.Listener, c quevu.Controller) error {
 
 // ServeConn serves the controller on one connection and returns when the
 // connection ends. It closes conn.
-func ServeConn(conn io.ReadWriteCloser, c quevu.Controller) error {
+func ServeConn(conn io.ReadWriteCloser, c qkernel.Controller) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &session{
 		c:      c,
 		conn:   conn,
 		ctx:    ctx,
-		feeds:  make(map[uint64]*quevu.Feed),
-		byName: make(map[string]quevu.Source),
-		units:  newQueue[quevu.UnitInfo](),
+		feeds:  make(map[uint64]*qkernel.Feed),
+		byName: make(map[string]qkernel.Source),
+		units:  newQueue[qkernel.UnitInfo](),
 	}
 	for _, src := range c.Sources() {
 		s.byName[src.Name()] = src
@@ -88,7 +88,7 @@ func ServeConn(conn io.ReadWriteCloser, c quevu.Controller) error {
 }
 
 type session struct {
-	c    quevu.Controller
+	c    qkernel.Controller
 	conn io.ReadWriteCloser
 	ctx  context.Context
 	wg   sync.WaitGroup
@@ -96,9 +96,9 @@ type session struct {
 	wmu sync.Mutex // one writer on the connection at a time
 
 	mu     sync.Mutex
-	feeds  map[uint64]*quevu.Feed
-	byName map[string]quevu.Source
-	units  *queue[quevu.UnitInfo]
+	feeds  map[uint64]*qkernel.Feed
+	byName map[string]qkernel.Source
+	units  *queue[qkernel.UnitInfo]
 }
 
 func (s *session) send(m *msg) error {
@@ -141,7 +141,7 @@ func (s *session) dispatch(m *msg) {
 		if f == nil || m.Req == nil {
 			return
 		}
-		r := quevu.Request{Op: quevu.Op(m.Req.Op), Seq: m.Req.Seq, N: m.Req.N}
+		r := qkernel.Request{Op: qkernel.Op(m.Req.Op), Seq: m.Req.Seq, N: m.Req.N}
 		select {
 		case f.Req <- r:
 		case <-s.ctx.Done():
@@ -241,7 +241,7 @@ func (s *session) handle(m *msg) *msg {
 			re.Err = fmt.Sprintf("unknown source %q", m.Source)
 			break
 		}
-		var cs []quevu.Chunk
+		var cs []qkernel.Chunk
 		var err error
 		switch m.Op {
 		case "tail":
@@ -260,7 +260,7 @@ func (s *session) handle(m *msg) *msg {
 		}
 		// One bounded step. The source, and the stored-data provider
 		// behind it, keep their say on how much that is.
-		r, err := quevu.Search(src, quevu.Query{Text: m.Text, From: m.Seq, Forward: m.Fwd, Max: m.N, Budget: m.Budget, History: m.Hist, Since: wTime(m.Since), Until: wTime(m.Until)})
+		r, err := qkernel.Search(src, qkernel.Query{Text: m.Text, From: m.Seq, Forward: m.Fwd, Max: m.N, Budget: m.Budget, History: m.Hist, Since: wTime(m.Since), Until: wTime(m.Until)})
 		re.Chunks, re.Err = toWChunks(r.Matches), errText(err)
 		re.Seq, re.RT, re.Examined, re.Done, re.Hist, re.OOR = r.Reached, r.ReachedTime, r.Examined, r.Done, r.History, r.OutOfRange
 	case "stats":
@@ -269,7 +269,7 @@ func (s *session) handle(m *msg) *msg {
 			re.Err = fmt.Sprintf("unknown source %q", m.Source)
 			break
 		}
-		if ss, ok := src.(quevu.StatSource); ok {
+		if ss, ok := src.(qkernel.StatSource); ok {
 			for _, st := range ss.Stats() {
 				re.Stats = append(re.Stats, wStats{
 					Name: st.Name, Queued: st.Queued, Capacity: st.Capacity, Written: st.Written,

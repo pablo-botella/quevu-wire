@@ -22,7 +22,7 @@ client.Stop(ctx, "mailer")           // returns when the mailer says it is done
 tail, _ := client.Sources()[0].Tail(200)
 ```
 
-`client` is a `quevu.Controller`, the same interface `*quevu.Panel`
+`client` is a `qkernel.Controller`, the same interface `*qkernel.Panel`
 implements. Whatever shows a panel shows a remote one without knowing.
 
 ## Install

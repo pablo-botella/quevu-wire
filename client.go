@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/pablo-botella/linereader"
-	"github.com/pablo-botella/quevu"
+	"github.com/pablo-botella/quevu/qkernel"
 )
 
 // Client is the far end of a served panel. It implements
-// quevu.Controller, so a visual part uses it exactly as it would use the
+// qkernel.Controller, so a visual part uses it exactly as it would use the
 // panel of its own process.
 type Client struct {
 	conn io.ReadWriteCloser
@@ -23,10 +23,10 @@ type Client struct {
 	nextID   uint64
 	pending  map[uint64]chan *msg
 	feeds    map[uint64]*clientFeed
-	watchers map[uint64]func(quevu.UnitInfo)
-	sources  []quevu.Source
+	watchers map[uint64]func(qkernel.UnitInfo)
+	sources  []qkernel.Source
 
-	units  *queue[quevu.UnitInfo]
+	units  *queue[qkernel.UnitInfo]
 	closed chan struct{}
 	once   sync.Once
 	err    error
@@ -39,8 +39,8 @@ func NewClient(conn io.ReadWriteCloser) (*Client, error) {
 		conn:     conn,
 		pending:  make(map[uint64]chan *msg),
 		feeds:    make(map[uint64]*clientFeed),
-		watchers: make(map[uint64]func(quevu.UnitInfo)),
-		units:    newQueue[quevu.UnitInfo](),
+		watchers: make(map[uint64]func(qkernel.UnitInfo)),
+		units:    newQueue[qkernel.UnitInfo](),
 		closed:   make(chan struct{}),
 	}
 	lr := linereader.NewLineReader(conn, 64<<10, maxLine)
@@ -137,8 +137,8 @@ func (c *Client) read(lr *linereader.LineReader) {
 			f := c.feeds[m.Feed]
 			c.mu.Unlock()
 			if f != nil {
-				f.deliver(quevu.Delivery{
-					Op:      quevu.Op(m.D.Op),
+				f.deliver(qkernel.Delivery{
+					Op:      qkernel.Op(m.D.Op),
 					Chunks:  fromWChunks(m.D.Chunks),
 					Full:    m.D.Full,
 					History: m.D.Hist,
@@ -164,7 +164,7 @@ func (c *Client) pumpUnits() {
 			return
 		}
 		c.mu.Lock()
-		fns := make([]func(quevu.UnitInfo), 0, len(c.watchers))
+		fns := make([]func(qkernel.UnitInfo), 0, len(c.watchers))
 		for _, fn := range c.watchers {
 			fns = append(fns, fn)
 		}
@@ -212,12 +212,12 @@ func (c *Client) call(ctx context.Context, m *msg) (*msg, error) {
 
 // Units lists the units of the application. On a broken connection it
 // returns nothing.
-func (c *Client) Units() []quevu.UnitInfo {
+func (c *Client) Units() []qkernel.UnitInfo {
 	re, err := c.call(context.Background(), &msg{Op: "units"})
 	if err != nil {
 		return nil
 	}
-	out := make([]quevu.UnitInfo, len(re.Units))
+	out := make([]qkernel.UnitInfo, len(re.Units))
 	for i, u := range re.Units {
 		out[i] = fromWUnit(u)
 	}
@@ -253,7 +253,7 @@ func (c *Client) StopAll(ctx context.Context) error { return c.control(ctx, "sto
 
 // Watch calls fn on every change of state of a unit. fn runs on a
 // goroutine of the client, one call at a time.
-func (c *Client) Watch(fn func(quevu.UnitInfo)) (cancel func()) {
+func (c *Client) Watch(fn func(qkernel.UnitInfo)) (cancel func()) {
 	c.mu.Lock()
 	c.nextID++
 	id := c.nextID
@@ -267,25 +267,25 @@ func (c *Client) Watch(fn func(quevu.UnitInfo)) (cancel func()) {
 }
 
 // Sources lists the logs of the application.
-func (c *Client) Sources() []quevu.Source {
+func (c *Client) Sources() []qkernel.Source {
 	c.mu.Lock()
 	cached := c.sources
 	c.mu.Unlock()
 	if cached != nil {
-		return append([]quevu.Source(nil), cached...)
+		return append([]qkernel.Source(nil), cached...)
 	}
 	re, err := c.call(context.Background(), &msg{Op: "sources"})
 	if err != nil {
 		return nil
 	}
-	out := make([]quevu.Source, len(re.Sources))
+	out := make([]qkernel.Source, len(re.Sources))
 	for i, name := range re.Sources {
 		out[i] = &remoteSource{c: c, name: name}
 	}
 	c.mu.Lock()
 	c.sources = out
 	c.mu.Unlock()
-	return append([]quevu.Source(nil), out...)
+	return append([]qkernel.Source(nil), out...)
 }
 
 // remoteSource is a log seen through the connection.
@@ -296,7 +296,7 @@ type remoteSource struct {
 
 func (s *remoteSource) Name() string { return s.name }
 
-func (s *remoteSource) ask(op string, seq uint64, n int) ([]quevu.Chunk, error) {
+func (s *remoteSource) ask(op string, seq uint64, n int) ([]qkernel.Chunk, error) {
 	re, err := s.c.call(context.Background(), &msg{Op: op, Source: s.name, Seq: seq, N: n})
 	if err != nil {
 		return nil, err
@@ -304,40 +304,40 @@ func (s *remoteSource) ask(op string, seq uint64, n int) ([]quevu.Chunk, error) 
 	return fromWChunks(re.Chunks), nil
 }
 
-func (s *remoteSource) Tail(n int) ([]quevu.Chunk, error) { return s.ask("tail", 0, n) }
+func (s *remoteSource) Tail(n int) ([]qkernel.Chunk, error) { return s.ask("tail", 0, n) }
 
-func (s *remoteSource) Before(seq uint64, n int) ([]quevu.Chunk, error) {
+func (s *remoteSource) Before(seq uint64, n int) ([]qkernel.Chunk, error) {
 	return s.ask("before", seq, n)
 }
 
-func (s *remoteSource) After(seq uint64, n int) ([]quevu.Chunk, error) {
+func (s *remoteSource) After(seq uint64, n int) ([]qkernel.Chunk, error) {
 	return s.ask("after", seq, n)
 }
 
 // Search runs one bounded step of a search in the application, next to
 // the data: only the matches travel.
-func (s *remoteSource) Search(q quevu.Query) (quevu.Result, error) {
+func (s *remoteSource) Search(q qkernel.Query) (qkernel.Result, error) {
 	re, err := s.c.call(context.Background(), &msg{
 		Op: "search", Source: s.name, Text: q.Text, Seq: q.From, Fwd: q.Forward, N: q.Max, Budget: q.Budget, Hist: q.History, Since: wNano(q.Since), Until: wNano(q.Until),
 	})
 	if err != nil {
-		return quevu.Result{Reached: q.From}, err
+		return qkernel.Result{Reached: q.From}, err
 	}
-	return quevu.Result{
+	return qkernel.Result{
 		Matches: fromWChunks(re.Chunks), Reached: re.Seq, ReachedTime: re.RT, Examined: re.Examined, Done: re.Done, History: re.Hist, OutOfRange: re.OOR,
 	}, nil
 }
 
 // Stats shows the writers of the log, as the application sees
 // them.
-func (s *remoteSource) Stats() []quevu.WriterStats {
+func (s *remoteSource) Stats() []qkernel.WriterStats {
 	re, err := s.c.call(context.Background(), &msg{Op: "stats", Source: s.name})
 	if err != nil {
 		return nil
 	}
-	out := make([]quevu.WriterStats, len(re.Stats))
+	out := make([]qkernel.WriterStats, len(re.Stats))
 	for i, w := range re.Stats {
-		out[i] = quevu.WriterStats{
+		out[i] = qkernel.WriterStats{
 			Name: w.Name, Queued: w.Queued, Capacity: w.Capacity, Written: w.Written,
 			Skipped: w.Skipped, Waiting: w.Waiting, Waits: w.Waits,
 			Failed: w.Failed, LastErr: textErr(w.LastErr),
@@ -346,7 +346,7 @@ func (s *remoteSource) Stats() []quevu.WriterStats {
 	return out
 }
 
-func (s *remoteSource) Subscribe(buffer int) *quevu.Feed {
+func (s *remoteSource) Subscribe(buffer int) *qkernel.Feed {
 	if buffer <= 0 {
 		buffer = 1024
 	}
@@ -354,8 +354,8 @@ func (s *remoteSource) Subscribe(buffer int) *quevu.Feed {
 	f := &clientFeed{
 		c:     c,
 		limit: buffer,
-		data:  make(chan quevu.Delivery),
-		req:   make(chan quevu.Request, 16),
+		data:  make(chan qkernel.Delivery),
+		req:   make(chan qkernel.Request, 16),
 		done:  make(chan struct{}),
 	}
 	f.cond = sync.NewCond(&f.mu)
@@ -374,7 +374,7 @@ func (s *remoteSource) Subscribe(buffer int) *quevu.Feed {
 		c.send(&msg{Op: "subscribe", Feed: f.id, Source: s.name, Buffer: buffer})
 		go f.pumpReq()
 	}
-	return quevu.NewFeed(f.data, f.req, func() {
+	return qkernel.NewFeed(f.data, f.req, func() {
 		c.mu.Lock()
 		delete(c.feeds, f.id)
 		c.mu.Unlock()
@@ -393,14 +393,14 @@ type clientFeed struct {
 	c     *Client
 	id    uint64
 	limit int
-	data  chan quevu.Delivery
-	req   chan quevu.Request
+	data  chan qkernel.Delivery
+	req   chan qkernel.Request
 	done  chan struct{}
 	once  sync.Once
 
 	mu    sync.Mutex
 	cond  *sync.Cond
-	inbox []quevu.Delivery
+	inbox []qkernel.Delivery
 	live  int
 	dnd   bool
 	ended bool
@@ -416,22 +416,22 @@ func (f *clientFeed) end() {
 	})
 }
 
-func (f *clientFeed) deliver(d quevu.Delivery) {
+func (f *clientFeed) deliver(d qkernel.Delivery) {
 	pause := false
 	f.mu.Lock()
 	switch {
-	case d.Op == quevu.OpLive && f.dnd:
+	case d.Op == qkernel.OpLive && f.dnd:
 		// Sent before the application heard about the sign.
-	case d.Op == quevu.OpLive:
+	case d.Op == qkernel.OpLive:
 		f.live += len(d.Chunks)
 		if f.live > f.limit {
 			kept := f.inbox[:0]
 			for _, x := range f.inbox {
-				if x.Op != quevu.OpLive {
+				if x.Op != qkernel.OpLive {
 					kept = append(kept, x)
 				}
 			}
-			f.inbox = append(kept, quevu.Delivery{Op: quevu.OpPause, Full: true})
+			f.inbox = append(kept, qkernel.Delivery{Op: qkernel.OpPause, Full: true})
 			f.live = 0
 			f.dnd = true
 			pause = true
@@ -439,8 +439,8 @@ func (f *clientFeed) deliver(d quevu.Delivery) {
 			f.inbox = append(f.inbox, d)
 		}
 	default:
-		if d.Op == quevu.OpFollow || (d.Op == quevu.OpPause && d.Full) {
-			f.dnd = d.Op == quevu.OpPause
+		if d.Op == qkernel.OpFollow || (d.Op == qkernel.OpPause && d.Full) {
+			f.dnd = d.Op == qkernel.OpPause
 		}
 		f.inbox = append(f.inbox, d)
 	}
@@ -448,7 +448,7 @@ func (f *clientFeed) deliver(d quevu.Delivery) {
 	f.mu.Unlock()
 	if pause {
 		// Not from the reading goroutine: writing may have to wait.
-		go f.c.send(&msg{Op: "req", Feed: f.id, Req: &wReq{Op: int(quevu.OpPause)}})
+		go f.c.send(&msg{Op: "req", Feed: f.id, Req: &wReq{Op: int(qkernel.OpPause)}})
 	}
 }
 
@@ -464,9 +464,9 @@ func (f *clientFeed) pumpData() {
 			return
 		}
 		d := f.inbox[0]
-		f.inbox[0] = quevu.Delivery{}
+		f.inbox[0] = qkernel.Delivery{}
 		f.inbox = f.inbox[1:]
-		if d.Op == quevu.OpLive {
+		if d.Op == qkernel.OpLive {
 			f.live -= len(d.Chunks)
 		}
 		f.mu.Unlock()
@@ -492,8 +492,8 @@ func (f *clientFeed) pumpReq() {
 }
 
 var (
-	_ quevu.Controller = (*Client)(nil)
-	_ quevu.Source     = (*remoteSource)(nil)
-	_ quevu.StatSource = (*remoteSource)(nil)
-	_ quevu.Searcher   = (*remoteSource)(nil)
+	_ qkernel.Controller = (*Client)(nil)
+	_ qkernel.Source     = (*remoteSource)(nil)
+	_ qkernel.StatSource = (*remoteSource)(nil)
+	_ qkernel.Searcher   = (*remoteSource)(nil)
 )

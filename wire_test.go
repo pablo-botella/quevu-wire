@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pablo-botella/quevu"
+	"github.com/pablo-botella/quevu/qkernel"
 	"github.com/pablo-botella/quevu/qpanel"
 )
 
 type rig struct {
-	panel  *quevu.Panel
+	panel  *qkernel.Panel
 	web    *pen
 	client *Client
 }
@@ -30,7 +30,7 @@ type pen struct {
 func (p *pen) Write(b []byte) (int, error) {
 	for _, line := range strings.Split(strings.TrimSuffix(string(b), "\n"), "\n") {
 		p.seq++
-		p.s.Write([]quevu.Chunk{{Seq: p.seq, Time: time.Now(), Data: []byte(line)}})
+		p.s.Write([]qkernel.Chunk{{Seq: p.seq, Time: time.Now(), Data: []byte(line)}})
 	}
 	return len(b), nil
 }
@@ -38,17 +38,17 @@ func (p *pen) Write(b []byte) (int, error) {
 // newRig serves a small application over an in-memory connection.
 func newRig(t *testing.T) *rig {
 	t.Helper()
-	p := quevu.New()
+	p := qkernel.New()
 	web := &pen{s: qpanel.New("web")}
 	p.AddSource(web.s)
 	p.AddSource(qpanel.New("mail"))
-	p.Add("web", quevu.Func(nil, nil))
-	p.Add("slow", quevu.Go(func(ctx context.Context) error {
+	p.Add("web", qkernel.Func(nil, nil))
+	p.Add("slow", qkernel.Go(func(ctx context.Context) error {
 		<-ctx.Done()
 		time.Sleep(30 * time.Millisecond) // the work in hand
 		return nil
 	}))
-	p.Add("broken", quevu.Func(func(context.Context) error { return errors.New("no license") }, nil))
+	p.Add("broken", qkernel.Func(func(context.Context) error { return errors.New("no license") }, nil))
 
 	a, b := net.Pipe()
 	go ServeConn(a, p)
@@ -63,7 +63,7 @@ func newRig(t *testing.T) *rig {
 	return &rig{panel: p, web: web, client: c}
 }
 
-func texts(cs []quevu.Chunk) string {
+func texts(cs []qkernel.Chunk) string {
 	parts := make([]string, len(cs))
 	for i, c := range cs {
 		parts[i] = string(c.Data)
@@ -71,7 +71,7 @@ func texts(cs []quevu.Chunk) string {
 	return strings.Join(parts, ",")
 }
 
-func recv(t *testing.T, f *quevu.Feed) quevu.Delivery {
+func recv(t *testing.T, f *qkernel.Feed) qkernel.Delivery {
 	t.Helper()
 	select {
 	case d, ok := <-f.Data:
@@ -82,7 +82,7 @@ func recv(t *testing.T, f *quevu.Feed) quevu.Delivery {
 	case <-time.After(3 * time.Second):
 		t.Fatal("no delivery")
 	}
-	return quevu.Delivery{}
+	return qkernel.Delivery{}
 }
 
 func TestUnitsAndSwitchesAcrossTheWire(t *testing.T) {
@@ -90,13 +90,13 @@ func TestUnitsAndSwitchesAcrossTheWire(t *testing.T) {
 	ctx := context.Background()
 
 	us := r.client.Units()
-	if len(us) != 3 || us[0].Name != "web" || us[0].State != quevu.Stopped {
+	if len(us) != 3 || us[0].Name != "web" || us[0].State != qkernel.Stopped {
 		t.Fatalf("units: %+v", us)
 	}
 
 	var mu sync.Mutex
 	var seen []string
-	cancel := r.client.Watch(func(i quevu.UnitInfo) {
+	cancel := r.client.Watch(func(i qkernel.UnitInfo) {
 		mu.Lock()
 		seen = append(seen, i.Name+":"+i.State.String())
 		mu.Unlock()
@@ -137,7 +137,7 @@ func TestUnitsAndSwitchesAcrossTheWire(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if us := r.client.Units(); us[2].State != quevu.Failed || us[2].Err != "no license" {
+	if us := r.client.Units(); us[2].State != qkernel.Failed || us[2].Err != "no license" {
 		t.Fatalf("broken: %+v", us[2])
 	}
 }
@@ -148,21 +148,21 @@ func TestGlobalSwitch(t *testing.T) {
 	if err := r.client.StartAll(ctx); err == nil {
 		t.Fatal("the broken unit should fail the global start")
 	}
-	if us := r.panel.Units(); us[0].State != quevu.Running || us[1].State != quevu.Running {
+	if us := r.panel.Units(); us[0].State != qkernel.Running || us[1].State != qkernel.Running {
 		t.Fatalf("units: %+v", us)
 	}
 	if err := r.client.StopAll(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if us := r.panel.Units(); us[0].State != quevu.Stopped || us[1].State != quevu.Stopped {
+	if us := r.panel.Units(); us[0].State != qkernel.Stopped || us[1].State != qkernel.Stopped {
 		t.Fatalf("units: %+v", us)
 	}
 }
 
 func TestStopDeadlineReachesTheApplication(t *testing.T) {
-	p := quevu.New()
+	p := qkernel.New()
 	release := make(chan struct{})
-	p.Add("stuck", quevu.Go(func(ctx context.Context) error {
+	p.Add("stuck", qkernel.Go(func(ctx context.Context) error {
 		<-ctx.Done()
 		<-release
 		return nil
@@ -183,7 +183,7 @@ func TestStopDeadlineReachesTheApplication(t *testing.T) {
 	}
 	// The application gave up at the same deadline, and says so.
 	deadline := time.Now().Add(3 * time.Second)
-	for p.Units()[0].State != quevu.Failed {
+	for p.Units()[0].State != qkernel.Failed {
 		if time.Now().After(deadline) {
 			t.Fatalf("state %v", p.Units()[0].State)
 		}
@@ -211,7 +211,7 @@ func TestSourcesByPosition(t *testing.T) {
 	if err != nil || texts(got) != "l11,l12" || got[0].Seq != 11 || got[0].Time.IsZero() {
 		t.Fatalf("after: %q %v", texts(got), err)
 	}
-	if st := web.(quevu.StatSource).Stats(); len(st) != 0 {
+	if st := web.(qkernel.StatSource).Stats(); len(st) != 0 {
 		t.Fatalf("stats: %+v", st)
 	}
 }
@@ -227,41 +227,41 @@ func TestSearchAcrossTheWire(t *testing.T) {
 	}
 	web := r.client.Sources()[0]
 	// The step runs in the application; only the match comes back.
-	res, err := quevu.Search(web, quevu.Query{Text: "error here"})
+	res, err := qkernel.Search(web, qkernel.Query{Text: "error here"})
 	if err != nil || len(res.Matches) != 1 || res.Matches[0].Seq != 300 || res.Reached != 300 {
 		t.Fatalf("%+v %v", res, err)
 	}
-	res, _ = quevu.Search(web, quevu.Query{Text: "error", From: res.Reached})
+	res, _ = qkernel.Search(web, qkernel.Query{Text: "error", From: res.Reached})
 	if len(res.Matches) != 1 || res.Matches[0].Seq != 200 || res.Examined != 100 || res.ReachedTime == 0 {
 		t.Fatalf("second step: %+v", res)
 	}
-	res, _ = quevu.Search(web, quevu.Query{Text: "error", From: 100, Forward: true})
+	res, _ = qkernel.Search(web, qkernel.Query{Text: "error", From: 100, Forward: true})
 	if len(res.Matches) != 1 || res.Matches[0].Seq != 200 {
 		t.Fatalf("forwards: %+v", res)
 	}
 	// A time range travels too, and so does the reason a step stopped.
-	res, _ = quevu.Search(web, quevu.Query{Text: "error", Since: time.Now().Add(time.Hour)})
+	res, _ = qkernel.Search(web, qkernel.Query{Text: "error", Since: time.Now().Add(time.Hour)})
 	if len(res.Matches) != 0 || !res.Done || !res.OutOfRange || res.Examined != 1 {
 		t.Fatalf("out of range: %+v", res)
 	}
-	res, _ = quevu.Search(web, quevu.Query{Text: "error", Since: time.Now().Add(-time.Hour), Until: time.Now().Add(time.Hour)})
+	res, _ = qkernel.Search(web, qkernel.Query{Text: "error", Since: time.Now().Add(-time.Hour), Until: time.Now().Add(time.Hour)})
 	if len(res.Matches) != 1 || res.Matches[0].Seq != 300 {
 		t.Fatalf("in range: %+v", res)
 	}
-	res, _ = quevu.Search(web, quevu.Query{Text: "nothing like it", Budget: 50})
+	res, _ = qkernel.Search(web, qkernel.Query{Text: "nothing like it", Budget: 50})
 	if len(res.Matches) != 0 || res.Examined != 50 || res.Done {
 		t.Fatalf("budget: %+v", res)
 	}
 }
 
 // history is a provider that holds an older stretch of a log.
-type history struct{ chunks []quevu.Chunk }
+type history struct{ chunks []qkernel.Chunk }
 
-func (h history) Tail(n int) ([]quevu.Chunk, error) {
+func (h history) Tail(n int) ([]qkernel.Chunk, error) {
 	return h.chunks[max(len(h.chunks)-n, 0):], nil
 }
 
-func (h history) Before(seq uint64, n int) ([]quevu.Chunk, error) {
+func (h history) Before(seq uint64, n int) ([]qkernel.Chunk, error) {
 	end := 0
 	for end < len(h.chunks) && h.chunks[end].Seq < seq {
 		end++
@@ -269,7 +269,7 @@ func (h history) Before(seq uint64, n int) ([]quevu.Chunk, error) {
 	return h.chunks[max(end-n, 0):end], nil
 }
 
-func (h history) After(seq uint64, n int) ([]quevu.Chunk, error) {
+func (h history) After(seq uint64, n int) ([]qkernel.Chunk, error) {
 	start := 0
 	for start < len(h.chunks) && h.chunks[start].Seq <= seq {
 		start++
@@ -283,14 +283,14 @@ func TestTheOfferOfHistoryCrossesTheWire(t *testing.T) {
 	scr := qpanel.New("old", qpanel.WithMemory(20))
 	var hist history
 	for i := uint64(1); i <= 60; i++ {
-		c := quevu.Chunk{Seq: i, Time: time.Now(), Data: fmt.Appendf(nil, "l%d", i)}
+		c := qkernel.Chunk{Seq: i, Time: time.Now(), Data: fmt.Appendf(nil, "l%d", i)}
 		if i <= 40 {
 			hist.chunks = append(hist.chunks, c)
 		}
-		scr.Write([]quevu.Chunk{c})
+		scr.Write([]qkernel.Chunk{c})
 	}
-	p := quevu.New()
-	p.AddSource(quevu.Join(scr, quevu.Roles{Historical: hist}))
+	p := qkernel.New()
+	p.AddSource(qkernel.Join(scr, qkernel.Roles{Historical: hist}))
 	a, b := net.Pipe()
 	go ServeConn(a, p)
 	c, err := NewClient(b)
@@ -302,27 +302,27 @@ func TestTheOfferOfHistoryCrossesTheWire(t *testing.T) {
 
 	f := src.Subscribe(0)
 	defer f.Close()
-	f.Req <- quevu.Request{Op: quevu.OpFollow, N: 5}
+	f.Req <- qkernel.Request{Op: qkernel.OpFollow, N: 5}
 	recv(t, f)
-	f.Req <- quevu.Request{Op: quevu.OpPause}
+	f.Req <- qkernel.Request{Op: qkernel.OpPause}
 	recv(t, f)
 	// Recent output ends: the controller is told there is a history.
-	f.Req <- quevu.Request{Op: quevu.OpBefore, Seq: 45, N: 10}
+	f.Req <- qkernel.Request{Op: qkernel.OpBefore, Seq: 45, N: 10}
 	d := recv(t, f)
-	if d.Op != quevu.OpBefore || texts(d.Chunks) != "l41,l42,l43,l44" || !d.History {
+	if d.Op != qkernel.OpBefore || texts(d.Chunks) != "l41,l42,l43,l44" || !d.History {
 		t.Fatalf("offer: %v %q history=%v", d.Op, texts(d.Chunks), d.History)
 	}
 	// And gets it only by asking.
-	f.Req <- quevu.Request{Op: quevu.OpHistoryBefore, Seq: 41, N: 3}
-	if d := recv(t, f); d.Op != quevu.OpHistoryBefore || texts(d.Chunks) != "l38,l39,l40" {
+	f.Req <- qkernel.Request{Op: qkernel.OpHistoryBefore, Seq: 41, N: 3}
+	if d := recv(t, f); d.Op != qkernel.OpHistoryBefore || texts(d.Chunks) != "l38,l39,l40" {
 		t.Fatalf("history: %v %q", d.Op, texts(d.Chunks))
 	}
 	// The same for a search.
-	res, err := quevu.Search(src, quevu.Query{Text: "l7"})
+	res, err := qkernel.Search(src, qkernel.Query{Text: "l7"})
 	if err != nil || len(res.Matches) != 0 || !res.Done || !res.History {
 		t.Fatalf("search offer: %+v %v", res, err)
 	}
-	res, _ = quevu.Search(src, quevu.Query{Text: "l7", From: res.Reached, History: true})
+	res, _ = qkernel.Search(src, qkernel.Query{Text: "l7", From: res.Reached, History: true})
 	if len(res.Matches) != 1 || res.Matches[0].Seq != 7 {
 		t.Fatalf("search in the history: %+v", res)
 	}
@@ -334,25 +334,25 @@ func TestFeedAcrossTheWire(t *testing.T) {
 	f := r.client.Sources()[0].Subscribe(0)
 	defer f.Close()
 
-	f.Req <- quevu.Request{Op: quevu.OpFollow, N: 2}
-	if d := recv(t, f); d.Op != quevu.OpFollow || texts(d.Chunks) != "b,c" {
+	f.Req <- qkernel.Request{Op: qkernel.OpFollow, N: 2}
+	if d := recv(t, f); d.Op != qkernel.OpFollow || texts(d.Chunks) != "b,c" {
 		t.Fatalf("follow: %v %q", d.Op, texts(d.Chunks))
 	}
 	fmt.Fprint(r.web, "d\n")
-	if d := recv(t, f); d.Op != quevu.OpLive || texts(d.Chunks) != "d" {
+	if d := recv(t, f); d.Op != qkernel.OpLive || texts(d.Chunks) != "d" {
 		t.Fatalf("live: %v %q", d.Op, texts(d.Chunks))
 	}
-	f.Req <- quevu.Request{Op: quevu.OpPause}
-	if d := recv(t, f); d.Op != quevu.OpPause || d.Full {
+	f.Req <- qkernel.Request{Op: qkernel.OpPause}
+	if d := recv(t, f); d.Op != qkernel.OpPause || d.Full {
 		t.Fatalf("pause: %+v", d)
 	}
 	fmt.Fprint(r.web, "e\nf\n")
-	f.Req <- quevu.Request{Op: quevu.OpBefore, Seq: 3, N: 5}
-	if d := recv(t, f); d.Op != quevu.OpBefore || texts(d.Chunks) != "a,b" {
+	f.Req <- qkernel.Request{Op: qkernel.OpBefore, Seq: 3, N: 5}
+	if d := recv(t, f); d.Op != qkernel.OpBefore || texts(d.Chunks) != "a,b" {
 		t.Fatalf("before: %v %q", d.Op, texts(d.Chunks))
 	}
-	f.Req <- quevu.Request{Op: quevu.OpFollow, N: 1}
-	if d := recv(t, f); d.Op != quevu.OpFollow || texts(d.Chunks) != "f" {
+	f.Req <- qkernel.Request{Op: qkernel.OpFollow, N: 1}
+	if d := recv(t, f); d.Op != qkernel.OpFollow || texts(d.Chunks) != "f" {
 		t.Fatalf("resume: %v %q", d.Op, texts(d.Chunks))
 	}
 }
@@ -361,7 +361,7 @@ func TestSlowControllerNeverBlocksTheApplication(t *testing.T) {
 	r := newRig(t)
 	f := r.client.Sources()[0].Subscribe(16)
 	defer f.Close()
-	f.Req <- quevu.Request{Op: quevu.OpFollow}
+	f.Req <- qkernel.Request{Op: qkernel.OpFollow}
 	recv(t, f)
 
 	// The console stops reading while the application talks a lot.
@@ -382,21 +382,21 @@ func TestSlowControllerNeverBlocksTheApplication(t *testing.T) {
 	sawSign := false
 	for i := 0; i < 50 && !sawSign; i++ {
 		d := recv(t, f)
-		sawSign = d.Op == quevu.OpPause && d.Full
+		sawSign = d.Op == qkernel.OpPause && d.Full
 	}
 	if !sawSign {
 		t.Fatal("no do-not-disturb sign")
 	}
-	f.Req <- quevu.Request{Op: quevu.OpFollow, N: 1}
+	f.Req <- qkernel.Request{Op: qkernel.OpFollow, N: 1}
 	for {
 		d := recv(t, f)
-		if d.Op == quevu.OpFollow {
+		if d.Op == qkernel.OpFollow {
 			if texts(d.Chunks) != "l19999" {
 				t.Fatalf("resume: %q", texts(d.Chunks))
 			}
 			break
 		}
-		if d.Op == quevu.OpLive {
+		if d.Op == qkernel.OpLive {
 			t.Fatalf("live output delivered behind the sign")
 		}
 	}
@@ -463,10 +463,10 @@ func TestNotQuevuAtTheOtherEnd(t *testing.T) {
 // Unix domain socket elsewhere.
 func TestLocalEndpoint(t *testing.T) {
 	name := fmt.Sprintf("test-%d", time.Now().UnixNano())
-	p := quevu.New()
+	p := qkernel.New()
 	lg := &pen{s: qpanel.New("out")}
 	p.AddSource(lg.s)
-	p.Add("a", quevu.Func(nil, nil))
+	p.Add("a", qkernel.Func(nil, nil))
 	defer p.Shutdown()
 
 	l, err := Listen(name)
@@ -493,7 +493,7 @@ func TestLocalEndpoint(t *testing.T) {
 	if err := c1.Start(ctx, "a"); err != nil {
 		t.Fatal(err)
 	}
-	if us := c2.Units(); len(us) != 1 || us[0].State != quevu.Running {
+	if us := c2.Units(); len(us) != 1 || us[0].State != qkernel.Running {
 		t.Fatalf("second controller sees %+v", us)
 	}
 	fmt.Fprint(lg, "hello\n")

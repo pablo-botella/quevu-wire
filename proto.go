@@ -1,7 +1,7 @@
 // Package qwire carries a quevu panel across a local connection, so the
 // visual part can run in a process of its own: the application serves its
-// quevu.Controller, and the controller program gets back a
-// quevu.Controller that behaves like the original.
+// qkernel.Controller, and the controller program gets back a
+// qkernel.Controller that behaves like the original.
 //
 // # Transport
 //
@@ -44,7 +44,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/pablo-botella/quevu"
+	"github.com/pablo-botella/quevu/qkernel"
 )
 
 // Version is the protocol version announced in the hello.
@@ -129,7 +129,7 @@ type wStats struct {
 	LastErr  string `json:"last_err,omitempty"`
 }
 
-func toWChunks(cs []quevu.Chunk) []wChunk {
+func toWChunks(cs []qkernel.Chunk) []wChunk {
 	if len(cs) == 0 {
 		return nil
 	}
@@ -144,23 +144,23 @@ func toWChunks(cs []quevu.Chunk) []wChunk {
 	return out
 }
 
-func fromWChunks(ws []wChunk) []quevu.Chunk {
+func fromWChunks(ws []wChunk) []qkernel.Chunk {
 	if len(ws) == 0 {
 		return nil
 	}
-	out := make([]quevu.Chunk, len(ws))
+	out := make([]qkernel.Chunk, len(ws))
 	for i, w := range ws {
-		out[i] = quevu.Chunk{Seq: w.S, Time: time.Unix(0, w.T), Data: w.D}
+		out[i] = qkernel.Chunk{Seq: w.S, Time: time.Unix(0, w.T), Data: w.D}
 	}
 	return out
 }
 
-func toWUnit(i quevu.UnitInfo) wUnit {
+func toWUnit(i qkernel.UnitInfo) wUnit {
 	return wUnit{Name: i.Name, State: int(i.State), Err: i.Err}
 }
 
-func fromWUnit(w wUnit) quevu.UnitInfo {
-	return quevu.UnitInfo{Name: w.Name, State: quevu.State(w.State), Err: w.Err}
+func fromWUnit(w wUnit) qkernel.UnitInfo {
+	return qkernel.UnitInfo{Name: w.Name, State: qkernel.State(w.State), Err: w.Err}
 }
 
 // wTime and wNano carry a time as nanoseconds since the Unix epoch, with
